@@ -3,305 +3,270 @@
 namespace App\Entity;
 
 use ApiPlatform\Core\Annotation\ApiFilter;
+use ApiPlatform\Core\Annotation\ApiResource;
 use ApiPlatform\Core\Annotation\ApiSubresource;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
+use App\Controller\Client\ClientGetItemAction;
+use App\Controller\Client\ClientLoginByTokenCollectionAction;
+use App\Controller\Client\ClientPutItemController;
+use App\Controller\Client\ClientRemindPasswordCollectionController;
+use App\Controller\Client\ClientSignupPostCollectionController;
 use App\Interfaces\ClientInterface;
-use App\Interfaces\SearchInterface;
+use App\Repository\ClientRepository;
+use App\Traits\Blameable;
+use App\Traits\IsActive;
+use App\Traits\Timestampable;
 use DateTime;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use App\Traits\Blameable;
-use App\Traits\IsActive;
-use App\Traits\Timestampable;
-use ApiPlatform\Core\Annotation\ApiResource;
-use Exception;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Serializer\Annotation\Groups;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\DateFilter;
 use Symfony\Component\Validator\Constraints as Assert;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
-use App\Controller\Client\ClientLoginByTokenCollectionAction;
-use App\Controller\Client\ClientGetItemAction;
-use App\Controller\Client\ClientPutItemController;
-use App\Controller\Client\ClientSignupPostCollectionController;
-use App\Controller\Client\ClientRemindPasswordCollectionController;
-
 use function bin2hex;
 use function random_bytes;
 
-/**
- * Client
- *
- * @ORM\Table(name="client")
- * @ORM\Entity(repositoryClass="App\Repository\ClientRepository")
- * @UniqueEntity(fields={"username"}, errorPath="username", message="User already exists")
- * @ApiResource(
- *     attributes={
- *          "normalization_context"={"groups"={"client_read", "read", "is_active_read"}},
- *          "denormalization_context"={"groups"={"client_write", "is_active_write"}},
- *          "order"={"id": "DESC"}
- *     },
- *     collectionOperations={
- *          "get"={
- *              "normalization_context"={
- *                  "groups"={"client_read_collection", "read", "is_active_read"}
- *              },
- *              "security"="is_granted('ROLE_CLIENT_LIST')"
- *          },
- *          "post"={
- *              "security"="is_granted('ROLE_CLIENT_CREATE')"
- *          },
- *          "signup"={
- *              "method"="POST",
- *              "path"="/frontend/signup",
- *              "denormalization_context"={
- *                  "groups"={"signup_collection"}
- *              },
- *              "controller"=ClientSignupPostCollectionController::class,
- *              "validation_groups"={"client_signup_frontend"},
- *              "defaults"={"_api_receive"=true},
- *          }
- *     },
- *     itemOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_CLIENT_SHOW')"
- *          },
- *          "put"={
- *              "security"="is_granted('ROLE_CLIENT_UPDATE')"
- *          },
- *          "delete"={
- *              "security"="is_granted('ROLE_CLIENT_DELETE')"
- *          },
- *          "clientGet"={
- *              "security"="is_granted('ROLE_CLIENT')",
- *              "method"="GET",
- *              "path"="/frontend/profile/me",
- *              "normalization_context"={
- *                  "groups"={"client_get_item"}
- *              },
- *              "controller"=ClientGetItemAction::class,
- *              "defaults"={"_api_receive"=false},
- *          },
- *          "clientPut"={
- *              "security"="is_granted('ROLE_CLIENT')",
- *              "method"="PUT",
- *              "path"="/frontend/profile/me",
- *              "normalization_context"={
- *                  "groups"={"client_put_item"}
- *              },
- *              "controller"=ClientPutItemController::class,
- *              "validation_groups"={"client_put_frontend"},
- *              "defaults"={"_api_receive"=true},
- *          },
- *          "loginByToken"={
- *              "method"="GET",
- *              "path"="/frontend/login/{token}",
- *              "controller"=ClientLoginByTokenCollectionAction::class,
- *              "defaults"={"_api_receive"=false},
- *          },
- *          "remindPassword"={
- *              "method"="POST",
- *              "path"="/frontend/remind/password",
- *              "controller"=ClientRemindPasswordCollectionController::class,
- *              "defaults"={"_api_receive"=false},
- *          }
- *     }
- * )
- * @ApiFilter(DateFilter::class, properties={"createdAt", "updatedAt"})
- * @ApiFilter(SearchFilter::class, properties={
- *     "id": "exact",
- *     "name": "ipartial",
- *     "labels.id": "exact",
- *     "contacts.value": "ipartial",
- *     "description": "ipartial"
- * })
- * @ApiFilter(
- *     OrderFilter::class,
- *     properties={
- *          "id",
- *          "name",
- *          "description",
- *          "createdAt",
- *          "updatedAt"
- *     }
- * )
- */
-class Client implements ClientInterface, SearchInterface, UserInterface
+#[ApiResource(
+    collectionOperations: [
+        'get' => [
+            'normalization_context' => ['groups' => ["client_read_collection", "read", "is_active_read"]],
+            'security' => "is_granted('ROLE_CLIENT_LIST')"
+        ],
+        'post' => ['security' => "is_granted('ROLE_CLIENT_CREATE')"],
+        'signup' => [
+            'method' => 'POST',
+            'path' => '/frontend/signup',
+            'denormalization_context' => ['groups' => ["signup_collection"]],
+            'controller' => ClientSignupPostCollectionController::class,
+            'validation_groups' => ['client_signup_frontend'],
+            'defaults' => ['_api_receive' => true]
+        ],
+    ],
+    itemOperations: [
+        'get' => ['security' => "is_granted('ROLE_CLIENT_SHOW')"],
+        'put' => ['security' => "is_granted('ROLE_CLIENT_UPDATE')"],
+        'delete' => ['security' => "is_granted('ROLE_CLIENT_DELETE')"],
+        'clientGet' => [
+            'security' => "is_granted('ROLE_CLIENT')",
+            'method' => 'GET',
+            'path' => '/frontend/profile/me',
+            'normalization_context' => ['groups' => ["client_get_item"]],
+            'controller' => ClientGetItemAction::class,
+            'defaults' => ['_api_receive' => false]
+        ],
+        'clientPut' => [
+            'security' => "is_granted('ROLE_CLIENT')",
+            'method' => 'PUT',
+            'path' => '/frontend/profile/me',
+            'normalization_context' => ['groups' => ["client_put_item"]],
+            'controller' => ClientPutItemController::class,
+            'validation_groups' => ['client_put_frontend'],
+            'defaults' => ['_api_receive' => true]
+        ],
+        'loginByToken' => [
+            'method' => 'GET',
+            'path' => '/frontend/login/{token}',
+            'controller' => ClientLoginByTokenCollectionAction::class,
+            'defaults' => ['_api_receive' => false]
+        ],
+        'remindPassword' => [
+            'method' => 'POST',
+            'path' => '/frontend/remind/password',
+            'controller' => ClientRemindPasswordCollectionController::class,
+            'defaults' => ['_api_receive' => false]
+        ],
+    ],
+    attributes: [
+        'order' => ['id' => "DESC"],
+        'normalization_context' => ['groups' => ["client_read", "read", "is_active_read"]],
+        'denormalization_context' => ['groups' => ["client_write", "is_active_write"]],
+    ]
+)]
+#[ApiFilter(
+    DateFilter::class,
+    properties: [
+        "createdAt",
+        "updatedAt",
+    ]
+)]
+#[ApiFilter(
+    SearchFilter::class,
+    properties: [
+        "id" => "exact",
+        "name" => "ipartial",
+        "labels.id" => "exact",
+        "contacts.value" => "ipartial",
+        "description" => "ipartial"
+    ]
+)]
+#[ApiFilter(
+    OrderFilter::class,
+    properties: [
+        "id",
+        "name",
+        "description",
+        "createdAt",
+        "updatedAt"
+    ]
+)]
+#[UniqueEntity(fields: ['username'], message: 'User already exists', errorPath: 'username')]
+#[ORM\Entity(repositoryClass: ClientRepository::class)]
+class Client implements ClientInterface, UserInterface, PasswordAuthenticatedUserInterface
 {
     use Timestampable;
     use Blameable;
     use IsActive;
 
-    /**
-     * @var int|null
-     *
-     * @ORM\Column(type="integer")
-     * @ORM\Id
-     * @ORM\GeneratedValue()
-     * @Groups({
-     *     "client_read",
-     *     "client_read_collection",
-     *     "company_read",
-     *     "company_write",
-     *     "document_read",
-     *     "project_read",
-     *     "document_write",
-     *     "project_write",
-     *     "task_read",
-     *     "contact_read",
-     *     "contact_write",
-     *     "order_header_read",
-     *     "order_header_read_collection",
-     *     "order_header_write",
-     *     "address_read",
-     *     "address_write",
-     *     "client_get_item"
-     * })
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    #[Groups([
+        "client_read",
+        "client_read_collection",
+        "document_read",
+        "project_read",
+        "document_write",
+        "project_write",
+        "task_read",
+        "contact_read",
+        "contact_write",
+        "order_header_read",
+        "order_header_read_collection",
+        "order_header_write",
+        "address_read",
+        "address_write",
+        "client_get_item"
+    ])]
     private ?int $id = null;
 
-    /**
-     * @var string
-     *
-     * @ORM\Column(type="string", length=255)
-     * @Groups({
-     *     "client_read",
-     *     "client_read_collection",
-     *     "client_write",
-     *     "company_read",
-     *     "company_write",
-     *     "document_read",
-     *     "project_read",
-     *     "document_write",
-     *     "task_read",
-     *     "contact_read",
-     *     "order_header_read",
-     *     "order_header_read_collection",
-     *     "client_get_item",
-     *     "client_put_item",
-     *     "signup_collection",
-     *     "address_read",
-     * })
-     * @Assert\NotBlank(groups={"Default", "client_signup_frontend", "client_put_frontend"})
-     */
+    #[ORM\Column(type: 'string', length: 255)]
+    #[Assert\NotBlank(
+        groups: [
+            'Default',
+            'client_signup_frontend',
+            'client_put_frontend'
+        ]
+    )]
+    #[Groups([
+        "client_read",
+        "client_read_collection",
+        "client_write",
+        "document_read",
+        "project_read",
+        "document_write",
+        "task_read",
+        "contact_read",
+        "order_header_read",
+        "order_header_read_collection",
+        "client_get_item",
+        "client_put_item",
+        "signup_collection",
+        "address_read",
+    ])]
     private string $name;
 
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Address", inversedBy="clients")
-     * @ORM\OrderBy({"id" = "DESC"})
-     * @Groups({
-     *     "client_read",
-     *     "client_write"
-     * })
-     * @ApiSubresource()
-     * @Assert\Valid()
-     */
+    #[ApiSubresource]
+    #[ORM\OneToMany(mappedBy: 'client', targetEntity: Address::class)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Assert\Valid]
+    #[Groups([
+        "client_read",
+        "client_write"
+    ])]
     private Collection $addresses;
 
-    /**
-     * @var string|null
-     *
-     * @ORM\Column(type="text", nullable=true)
-     * @Groups({
-     *     "client_read",
-     *     "client_read_collection",
-     *     "client_write",
-     *     "company_read"
-     * })
-     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups([
+        "client_read",
+        "client_read_collection",
+        "client_write"
+    ])]
     private ?string $description = null;
 
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Label")
-     * @ORM\OrderBy({"id" = "ASC"})
-     * @Groups({
-     *     "client_read",
-     *     "client_read_collection",
-     *     "client_write"
-     * })
-     */
+    #[ORM\ManyToMany(targetEntity: Label::class)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Groups([
+        "client_read",
+        "client_read_collection",
+        "client_write"
+    ])]
     private Collection $labels;
 
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Contact", inversedBy="clients", cascade={"persist"}, orphanRemoval=true)
-     * @ORM\OrderBy({"id" = "ASC"})
-     * @Groups({
-     *     "client_read",
-     *     "client_read_collection",
-     *     "client_write"
-     * })
-     * @ApiSubresource()
-     * @Assert\Valid()
-     */
+    #[ApiSubresource]
+    #[ORM\OneToMany(mappedBy: 'client', targetEntity: Contact::class)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Assert\Valid]
+    #[Groups([
+        "client_read",
+        "client_read_collection",
+        "client_write"
+    ])]
     private Collection $contacts;
 
-    /**
-     * @ORM\OneToMany(targetEntity="App\Entity\Project", mappedBy="client", cascade={"persist"}, orphanRemoval=true)
-     * @Groups({
-     *     "document_read",
-     *     "client_read",
-     *     "client_write"
-     * })
-     * @ORM\OrderBy({"id" = "ASC"})
-     * @ApiSubresource()
-     * @Assert\Valid()
-     */
+    #[ApiSubresource]
+    #[ORM\OneToMany(mappedBy: 'client', targetEntity: Project::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Assert\Valid]
+    #[Groups([
+        "document_read",
+        "client_read",
+        "client_write"
+    ])]
     private Collection $projects;
 
-    /**
-     * @ORM\OneToMany(targetEntity="App\Entity\Document", mappedBy="client", orphanRemoval=true)
-     * @ORM\OrderBy({"id" = "DESC"})
-     * @ApiSubresource()
-     */
+    #[ApiSubresource]
+    #[ORM\OneToMany(mappedBy: 'client', targetEntity: Document::class, orphanRemoval: true)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
     private Collection $documents;
 
-    /**
-     * @ORM\Column(type="string", length=255, unique=true)
-     * @Groups({
-     *     "client_read",
-     *     "client_write",
-     *     "client_get_item",
-     *     "client_put_item",
-     *     "signup_collection",
-     * })
-     * @Assert\NotBlank(groups={"Default", "client_signup_frontend", "client_put_frontend"})
-     * @Assert\Email(groups={"Default", "client_signup_frontend", "client_put_frontend"})
-     */
+    #[ORM\Column(type: 'string', length: 255, unique: true)]
+    #[Assert\NotBlank(
+        groups: [
+            'Default',
+            'client_signup_frontend',
+            'client_put_frontend'
+        ]
+    )]
+    #[Assert\Email(
+        groups: [
+            'Default',
+            'client_signup_frontend',
+            'client_put_frontend'
+        ]
+    )]
+    #[Groups([
+        "client_read",
+        "client_write",
+        "client_get_item",
+        "client_put_item",
+        "signup_collection",
+    ])]
     private string $username;
 
-    /**
-     * @ORM\Column(type="string", length=64)
-     */
+    #[ORM\Column(type: 'string', length: 64)]
     private string $password;
 
-    /**
-     * @Groups({
-     *     "client_write",
-     *     "signup_collection",
-     * })
-     * @Assert\NotBlank(groups={"client_signup_frontend"})
-     */
+    #[Assert\NotBlank(
+        groups: [
+            'client_signup_frontend'
+        ]
+    )]
+    #[Groups([
+        "client_write",
+        "signup_collection",
+    ])]
     private ?string $plainPassword = null;
 
-    /**
-     * @var string|null
-     * @ORM\Column(type="text", nullable=true)
-     */
+    #[ORM\Column(type: 'text', nullable: true)]
     protected ?string $token = null;
 
-    /**
-     * @var DateTime|null
-     *
-     * @ORM\Column(type="datetime", nullable=true)
-     */
+    #[ORM\Column(type: 'datetime', nullable: true)]
     protected ?DateTime $tokenCreatedAt = null;
 
-    /**
-     * Client constructor.
-     * @throws Exception
-     */
     public function __construct()
     {
         $this->addresses = new ArrayCollection();
@@ -312,28 +277,9 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         $this->labels = new ArrayCollection();
     }
 
-    /**
-     * @return Client
-     */
     public function getClient(): self
     {
         return $this;
-    }
-
-    /**
-     * Search text
-     *
-     * @return string
-     */
-    public function getSearchText(): string
-    {
-        return implode(
-            ' ',
-            [
-                $this->getName(),
-                $this->getDescription(),
-            ]
-        );
     }
 
     public function getId(): ?int
@@ -365,9 +311,6 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Address[]
-     */
     public function getAddresses(): Collection
     {
         return $this->addresses;
@@ -391,9 +334,6 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Contact[]
-     */
     public function getContacts(): Collection
     {
         return $this->contacts;
@@ -417,9 +357,6 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Project[]
-     */
     public function getProjects(): Collection
     {
         return $this->projects;
@@ -448,9 +385,6 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Document[]
-     */
     public function getDocuments(): Collection
     {
         return $this->documents;
@@ -476,35 +410,21 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getUsername(): ?string
     {
         return $this->username;
     }
 
-    /**
-     * @param string $username
-     */
     public function setUsername(string $username): void
     {
         $this->username = $username;
     }
 
-    /**
-     * @return mixed
-     */
     public function getPassword(): ?string
     {
         return $this->password;
     }
 
-    /**
-     * @param mixed $password
-     * @return Client
-     * @return Client
-     */
     public function setPassword(string $password): self
     {
         $this->password = $password;
@@ -512,19 +432,11 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return mixed
-     */
     public function getPlainPassword(): ?string
     {
         return $this->plainPassword;
     }
 
-    /**
-     * @param mixed $plainPassword
-     * @return Client
-     * @return Client
-     */
     public function setPlainPassword(?string $plainPassword): self
     {
         $this->plainPassword = $plainPassword;
@@ -537,10 +449,7 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return null;
     }
 
-    /**
-     * @return array
-     */
-    public function getRoles(): ?array
+    public function getRoles(): array
     {
         return ['ROLE_CLIENT'];
     }
@@ -561,25 +470,16 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         return $this;
     }
 
-    /**
-     * @return DateTime
-     */
     public function getTokenCreatedAt(): ?DateTime
     {
         return $this->tokenCreatedAt;
     }
 
-    /**
-     * @param DateTime|null $tokenCreatedAt
-     */
     public function setTokenCreatedAt(?DateTime $tokenCreatedAt): void
     {
         $this->tokenCreatedAt = $tokenCreatedAt;
     }
 
-    /**
-     * @return Collection|Label[]
-     */
     public function getLabels(): Collection
     {
         return $this->labels;
@@ -601,5 +501,10 @@ class Client implements ClientInterface, SearchInterface, UserInterface
         }
 
         return $this;
+    }
+
+    public function getUserIdentifier(): string
+    {
+        return (string)$this->getId();
     }
 }

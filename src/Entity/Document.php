@@ -9,7 +9,7 @@ use ApiPlatform\Core\Annotation\ApiSubresource;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use App\Interfaces\SearchInterface;
+use App\Repository\DocumentRepository;
 use App\Traits\Blameable;
 use App\Traits\IsActive;
 use App\Traits\Timestampable;
@@ -19,128 +19,106 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 
-/**
- * Document
- *
- * @ORM\Table(name="document")
- * @ORM\Entity(repositoryClass="App\Repository\DocumentRepository")
- * @ApiResource(
- *     attributes={
- *          "normalization_context"={"groups"={"document_read", "read", "is_active_read"}},
- *          "denormalization_context"={"groups"={"document_write", "is_active_write"}},
- *          "order"={"id": "DESC"}
- *     },
- *     collectionOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_DOCUMENT_LIST')"
- *          },
- *          "post"={
- *              "security"="is_granted('ROLE_DOCUMENT_CREATE')"
- *          }
- *     },
- *     itemOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_DOCUMENT_SHOW')"
- *          },
- *          "put"={
- *              "security"="is_granted('ROLE_DOCUMENT_UPDATE')"
- *          },
- *          "delete"={
- *              "security"="is_granted('ROLE_DOCUMENT_DELETE')"
- *          }
- *     })
- * @ApiFilter(DateFilter::class, properties={"createdAt", "updatedAt"})
- * @ApiFilter(SearchFilter::class, properties={
- *     "id": "exact",
- *     "name": "partial",
- *     "client": "partial"
- * })
- * @ApiFilter(
- *     OrderFilter::class,
- *     properties={
- *          "id",
- *          "name",
- *          "client",
- *          "createdAt",
- *          "updatedAt"
- *     }
- * )
- */
-class Document implements SearchInterface
+#[ApiResource(
+    collectionOperations: [
+        'get' => ['security' => "is_granted('ROLE_DOCUMENT_LIST')"],
+        'post' => ['security' => "is_granted('ROLE_DOCUMENT_CREATE')"],
+    ],
+    itemOperations: [
+        'get' => ['security' => "is_granted('ROLE_DOCUMENT_SHOW')"],
+        'put' => ['security' => "is_granted('ROLE_DOCUMENT_UPDATE')"],
+        'delete' => ['security' => "is_granted('ROLE_DOCUMENT_DELETE')"],
+    ],
+    attributes: [
+        'order' => ['id' => "DESC"],
+        'normalization_context' => ['groups' => ["document_read", "read", "is_active_read"]],
+        'denormalization_context' => ['groups' => ["document_write", "is_active_write"]],
+    ]
+)]
+#[ApiFilter(
+    DateFilter::class,
+    properties: [
+        "createdAt",
+        "updatedAt",
+    ]
+)]
+#[ApiFilter(
+    SearchFilter::class,
+    properties: [
+        "id" => "exact",
+        "name" => "partial",
+        "client" => "partial"
+    ]
+)]
+#[ApiFilter(
+    OrderFilter::class,
+    properties: [
+        "id",
+        "name",
+        "client",
+        "createdAt",
+        "updatedAt"
+    ]
+)]
+#[ORM\Entity(repositoryClass: DocumentRepository::class)]
+class Document
 {
     use Timestampable;
     use Blameable;
     use IsActive;
 
-    /**
-     * @var int|null
-     *
-     * @ORM\Column(type="integer")
-     * @ORM\Id
-     * @ORM\GeneratedValue()
-     * @Groups({"document_read", "project_read", "invoice_header_read", "invoice_header_write", "invoice_header_read", "company_read"})
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    #[Groups([
+        "document_read",
+        "project_read",
+        "invoice_header_read",
+        "invoice_header_write",
+        "invoice_header_read",
+    ])]
     private ?int $id = null;
 
-    /**
-     * @var string
-     *
-     * @ORM\Column(type="string", length=255)
-     * @Groups({"document_read", "document_write", "project_read", "invoice_header_read", "company_read"})
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(type: 'string', length: 255)]
+    #[Assert\NotBlank]
+    #[Groups([
+        "document_read",
+        "document_write",
+        "project_read",
+        "invoice_header_read",
+    ])]
     private string $name;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\Client", inversedBy="documents")
-     * @Groups({"document_read", "document_write"})
-     */
+    #[ORM\ManyToOne(targetEntity: Client::class, inversedBy: 'documents')]
+    #[Groups([
+        "document_read",
+        "document_write",
+    ])]
     private ?Client $client = null;
 
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Company", inversedBy="documents")
-     * @Groups({"document_read", "document_write"})
-     */
-    private Collection $companies;
-
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Project", mappedBy="documents")
-     * @Groups({"document_read", "document_write"})
-     * @ORM\OrderBy({"id" = "DESC"})
-     */
+    #[ORM\ManyToMany(targetEntity: Project::class, mappedBy: 'documents')]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Groups([
+        "document_read",
+        "document_write",
+    ])]
     private Collection $projects;
 
-    /**
-     * @var Collection
-     * @ORM\ManyToMany(targetEntity="App\Entity\File")
-     * @ORM\JoinColumn()
-     * @ApiProperty(iri="http://schema.org/image")
-     * @ApiSubresource()
-     * @Groups({"document_read", "document_write", "project_read"})
-     * @ORM\OrderBy({"id" = "DESC"})
-     */
+    #[ApiProperty(iri: 'http://schema.org/image')]
+    #[ApiSubresource]
+    #[ORM\ManyToMany(targetEntity: File::class)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Groups([
+        "document_read",
+        "document_write",
+        "project_read"
+    ])]
     public Collection $files;
 
     public function __construct()
     {
-        $this->companies = new ArrayCollection();
         $this->projects = new ArrayCollection();
         $this->files = new ArrayCollection();
-    }
-
-    /**
-     * Search text
-     *
-     * @return string
-     */
-    public function getSearchText(): string
-    {
-        return implode(
-            ' ',
-            [
-                $this->getName(),
-            ]
-        );
     }
 
     public function getId(): ?int
@@ -160,35 +138,6 @@ class Document implements SearchInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Company[]
-     */
-    public function getCompanies(): Collection
-    {
-        return $this->companies;
-    }
-
-    public function addCompany(Company $company): self
-    {
-        if (!$this->companies->contains($company)) {
-            $this->companies[] = $company;
-        }
-
-        return $this;
-    }
-
-    public function removeCompany(Company $company): self
-    {
-        if ($this->companies->contains($company)) {
-            $this->companies->removeElement($company);
-        }
-
-        return $this;
-    }
-
-    /**
-     * @return Collection|Project[]
-     */
     public function getProjects(): Collection
     {
         return $this->projects;
@@ -214,9 +163,6 @@ class Document implements SearchInterface
         return $this;
     }
 
-    /**
-     * @return Collection|File[]
-     */
     public function getFiles(): Collection
     {
         return $this->files;

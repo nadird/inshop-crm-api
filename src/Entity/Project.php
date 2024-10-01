@@ -3,139 +3,158 @@
 namespace App\Entity;
 
 use ApiPlatform\Core\Annotation\ApiFilter;
+use ApiPlatform\Core\Annotation\ApiResource;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
 use App\Interfaces\ClientInterface;
-use App\Interfaces\SearchInterface;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
-use Doctrine\ORM\Mapping as ORM;
+use App\Repository\ProjectRepository;
 use App\Traits\Blameable;
 use App\Traits\IsActive;
 use App\Traits\Timestampable;
-use ApiPlatform\Core\Annotation\ApiResource;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
+use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\DateFilter;
 use Symfony\Component\Validator\Constraints as Assert;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
 
-/**
- * Project
- *
- * @ORM\Entity(repositoryClass="App\Repository\ProjectRepository")
- * @ApiResource(
- *     attributes={
- *          "normalization_context"={"groups"={"project_read", "read", "is_active_read"}},
- *          "denormalization_context"={"groups"={"project_write", "is_active_write"}},
- *          "order"={"id": "DESC"}
- *     },
- *     collectionOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_PROJECT_LIST')"
- *          },
- *          "post"={
- *              "security"="is_granted('ROLE_PROJECT_CREATE')"
- *          }
- *     },
- *     itemOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_PROJECT_SHOW')"
- *          },
- *          "put"={
- *              "security"="is_granted('ROLE_PROJECT_UPDATE')"
- *          },
- *          "delete"={
- *              "security"="is_granted('ROLE_PROJECT_DELETE')"
- *          }
- *     })
- * @ApiFilter(DateFilter::class, properties={"createdAt", "updatedAt"})
- * @ApiFilter(SearchFilter::class, properties={
- *     "id": "exact",
- *     "name": "ipartial",
- *     "status.id": "exact",
- *     "type.id": "exact",
- *     "client.name": "ipartial"
- * })
- * @ApiFilter(
- *     OrderFilter::class,
- *     properties={
- *          "id",
- *          "name",
- *          "status.id",
- *          "type.id",
- *          "clientname",
- *          "createdAt",
- *          "updatedAt"
- *     }
- * )
- */
-class Project implements ClientInterface, SearchInterface
+#[ApiResource(
+    collectionOperations: [
+        'get' => ['security' => "is_granted('ROLE_PROJECT_LIST')"],
+        'post' => ['security' => "is_granted('ROLE_PROJECT_CREATE')"],
+    ],
+    itemOperations: [
+        'get' => ['security' => "is_granted('ROLE_PROJECT_SHOW')"],
+        'put' => ['security' => "is_granted('ROLE_PROJECT_UPDATE')"],
+        'delete' => ['security' => "is_granted('ROLE_PROJECT_DELETE')"],
+    ],
+    attributes: [
+        'order' => ['id' => "DESC"],
+        'normalization_context' => ['groups' => ["project_read", "read", "is_active_read"]],
+        'denormalization_context' => ['groups' => ["project_write", "is_active_write"]],
+    ]
+)]
+#[ApiFilter(
+    DateFilter::class,
+    properties: [
+        "createdAt",
+        "updatedAt",
+    ]
+)]
+#[ApiFilter(
+    SearchFilter::class,
+    properties: [
+        "id" => "exact",
+        "name" => "ipartial",
+        "status.id" => "exact",
+        "type.id" => "exact",
+        "client.name" => "ipartial"
+    ]
+)]
+#[ApiFilter(
+    OrderFilter::class,
+    properties: [
+        "id",
+        "name",
+        "status.id",
+        "type.id",
+        "client.name",
+        "createdAt",
+        "updatedAt"
+    ]
+)]
+#[ORM\Entity(repositoryClass: ProjectRepository::class)]
+class Project implements ClientInterface
 {
     use Timestampable;
     use Blameable;
     use IsActive;
 
-    /**
-     * @var int|null
-     *
-     * @ORM\Column(name="id", type="integer")
-     * @ORM\Id
-     * @ORM\GeneratedValue()
-     * @Groups({"project_read", "user_read", "document_read", "document_write", "task_read", "task_write", "client_read", "client_write"})
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    #[Groups([
+        "project_read",
+        "user_read",
+        "document_read",
+        "document_write",
+        "task_read",
+        "task_write",
+        "client_read",
+        "client_write"
+    ])]
     private ?int $id = null;
 
-    /**
-     * @ORM\Column(type="string", length=255)
-     * @Groups({"project_read", "project_write", "user_read", "document_read", "document_write", "task_read", "task_write", "client_read", "client_write"})
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(type: 'string', length: 255)]
+    #[Assert\NotBlank]
+    #[Groups([
+        "project_read",
+        "project_write",
+        "user_read",
+        "document_read",
+        "document_write",
+        "task_read",
+        "task_write",
+        "client_read",
+        "client_write"
+    ])]
     private string $name;
 
-    /**
-     * @ORM\Column(type="text", nullable=true)
-     * @Groups({"project_read", "project_write", "document_read"})
-     */
+    #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups([
+        "project_read",
+        "project_write",
+        "document_read",
+    ])]
     private ?string $description = null;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\Client", inversedBy="projects")
-     * @Groups({"project_read", "project_write", "task_read"})
-     * @Assert\NotBlank()
-     */
+    #[ORM\ManyToOne(targetEntity: Client::class, inversedBy: 'projects')]
+    #[Assert\NotBlank]
+    #[Groups([
+        "project_read",
+        "project_write",
+        "task_read",
+    ])]
     private ?Client $client = null;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\ProjectStatus")
-     * @Groups({"project_read", "project_write", "document_read", "client_read", "client_write"})
-     * @Assert\NotBlank()
-     */
+    #[ORM\ManyToOne(targetEntity: ProjectStatus::class)]
+    #[Assert\NotBlank]
+    #[Groups([
+        "project_read",
+        "project_write",
+        "document_read",
+        "client_read",
+        "client_write",
+    ])]
     private ?ProjectStatus $status = null;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\ProjectType")
-     * @Groups({"project_read", "project_write", "client_read", "client_write"})
-     * @Assert\NotBlank()
-     */
+    #[ORM\ManyToOne(targetEntity: ProjectType::class)]
+    #[Assert\NotBlank]
+    #[Groups([
+        "project_read",
+        "project_write",
+        "client_read",
+        "client_write",
+    ])]
     private ?ProjectType $type = null;
 
-    /**
-     * @ORM\OneToMany(targetEntity="App\Entity\Task", mappedBy="project", cascade={"persist"}, orphanRemoval=true)
-     * @Groups({"project_read", "project_write"})
-     * @ORM\OrderBy({"id" = "ASC"})
-     * @Assert\Valid()
-     */
+    #[ORM\OneToMany(mappedBy: 'project', targetEntity: Task::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Assert\Valid]
+    #[Groups([
+        "project_read",
+        "project_write",
+    ])]
     private Collection $tasks;
 
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Document", inversedBy="projects")
-     * @Groups({"project_read"})
-     * @ORM\OrderBy({"id" = "DESC"})
-     */
+    #[ORM\ManyToMany(targetEntity: Document::class, inversedBy: 'projects')]
+    #[ORM\OrderBy(['id' => 'DESC'])]
+    #[Groups([
+        "project_read"
+    ])]
     private Collection $documents;
 
-    /**
-     * Constructor
-     */
     public function __construct()
     {
         $this->tasks = new ArrayCollection();
@@ -183,18 +202,11 @@ class Project implements ClientInterface, SearchInterface
         return $this;
     }
 
-    /**
-     * @return ProjectStatus
-     */
     public function getStatus(): ?ProjectStatus
     {
         return $this->status;
     }
 
-    /**
-     * @param ProjectStatus|null $status
-     * @return Project
-     */
     public function setStatus(?ProjectStatus $status): self
     {
         $this->status = $status;
@@ -202,9 +214,6 @@ class Project implements ClientInterface, SearchInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Task[]
-     */
     public function getTasks(): Collection
     {
         return $this->tasks;
@@ -233,9 +242,6 @@ class Project implements ClientInterface, SearchInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Document[]
-     */
     public function getDocuments(): Collection
     {
         return $this->documents;
@@ -269,21 +275,5 @@ class Project implements ClientInterface, SearchInterface
         $this->type = $type;
 
         return $this;
-    }
-
-    /**
-     * Search text
-     *
-     * @return string
-     */
-    public function getSearchText(): string
-    {
-        return implode(
-            ' ',
-            [
-                $this->getName(),
-                $this->getDescription(),
-            ]
-        );
     }
 }

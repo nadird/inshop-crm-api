@@ -3,219 +3,184 @@
 namespace App\Entity;
 
 use ApiPlatform\Core\Annotation\ApiFilter;
+use ApiPlatform\Core\Annotation\ApiResource;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use App\Controller\User\UserPutItemController;
-use App\Controller\User\UserPostCollectionController;
 use App\Controller\DashboardAction;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
-use Doctrine\ORM\Mapping as ORM;
+use App\Controller\User\UserPostCollectionController;
+use App\Controller\User\UserPutItemController;
+use App\Repository\UserRepository;
 use App\Traits\Blameable;
 use App\Traits\IsActive;
 use App\Traits\Timestampable;
-use ApiPlatform\Core\Annotation\ApiResource;
-use Serializable;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
+use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
-use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
-use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
 
-/**
- * User
- *
- * @ORM\Table(name="`user`")
- * @ORM\Entity(repositoryClass="App\Repository\UserRepository")
- * @UniqueEntity({"username"})
- * @ApiResource(
- *     attributes={
- *         "normalization_context"={"groups"={"user_read", "read", "is_active_read"}},
- *         "denormalization_context"={"groups"={"user_write", "is_active_write"}},
- *         "order"={"id": "DESC"},
- *     },
- *     collectionOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_USER_LIST')"
- *          },
- *          "post"={
- *              "controller"=UserPostCollectionController::class,
- *              "security"="is_granted('ROLE_USER_CREATE')"
- *          },
- *          "dashboard"={
- *              "security"="is_granted('ROLE_USER_DASHBOARD')",
- *              "method"="GET",
- *              "path"="/users/dashboard",
- *              "controller"=DashboardAction::class,
- *              "defaults"={"_api_receive"=false},
- *          }
- *     },
- *     itemOperations={
- *          "get"={
- *              "security"="is_granted('ROLE_USER_SHOW')"
- *          },
- *          "put"={
- *              "controller"=UserPutItemController::class,
- *              "security"="is_granted('ROLE_USER_UPDATE')"
- *          },
- *          "delete"={
- *              "security"="is_granted('ROLE_USER_DELETE')"
- *          }
- *     },
- * )
- * @ApiFilter(DateFilter::class, properties={"createdAt", "updatedAt"})
- * @ApiFilter(SearchFilter::class, properties={
- *     "id": "exact",
- *     "name": "ipartial",
- *     "email": "ipartial",
- *     "groups.name": "ipartial"
- * })
- * @ApiFilter(
- *     OrderFilter::class,
- *     properties={
- *          "id",
- *          "name",
- *          "email",
- *          "groups.name",
- *          "createdAt",
- *          "updatedAt"
- *     }
- * )
- */
-class User implements Serializable, UserInterface
+#[ApiResource(
+    collectionOperations: [
+        'get' => [
+            'security' => "is_granted('ROLE_USER_LIST')",
+            'normalization_context' => ['groups' => ["user_read_collection", "read", "is_active_read"]],
+        ],
+        'post' => [
+            'controller' => UserPostCollectionController::class,
+            'security' => "is_granted('ROLE_USER_CREATE')"
+        ],
+        'dashboard' => [
+            'security' => "is_granted('ROLE_USER_DASHBOARD')",
+            'method' => 'GET',
+            'path' => '/users/dashboard',
+            'controller' => DashboardAction::class,
+            'defaults' => ['_api_receive' => false]
+        ],
+    ],
+    itemOperations: [
+        'get' => ['security' => "is_granted('ROLE_USER_SHOW')"],
+        'put' => [
+            'controller' => UserPutItemController::class,
+            'security' => "is_granted('ROLE_USER_UPDATE')"
+        ],
+        'delete' => ['security' => "is_granted('ROLE_USER_DELETE')"],
+    ],
+    attributes: [
+        'order' => ['id' => "DESC"],
+        'normalization_context' => ['groups' => ["user_read", "read", "is_active_read"]],
+        'denormalization_context' => ['groups' => ["user_write", "is_active_write"]],
+    ]
+)]
+#[ApiFilter(
+    DateFilter::class,
+    properties: [
+        "createdAt",
+        "updatedAt",
+    ]
+)]
+#[ApiFilter(
+    SearchFilter::class,
+    properties: [
+        "id" => "exact",
+        "name" => "ipartial",
+        "email" => "ipartial",
+        "groups.name" => "ipartial"
+    ]
+)]
+#[ApiFilter(
+    OrderFilter::class,
+    properties: [
+        "id",
+        "name",
+        "email",
+        "groups.name",
+        "createdAt",
+        "updatedAt"
+    ]
+)]
+#[UniqueEntity(fields: ['username'])]
+#[ORM\Entity(repositoryClass: UserRepository::class)]
+#[ORM\Table(name: '`user`')]
+class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     use Timestampable;
     use Blameable;
     use IsActive;
 
-    /**
-     * @var int|null
-     *
-     * @ORM\Column(type="integer")
-     * @ORM\Id
-     * @ORM\GeneratedValue()
-     * @Groups({
-     *     "user_read",
-     *     "task_read",
-     *     "client_read",
-     *     "project_read",
-     *     "task_write"
-     * })
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    #[Groups([
+        "user_read",
+        "user_read_collection",
+        "task_read",
+        "client_read",
+        "project_read",
+        "task_write",
+    ])]
     private ?int $id = null;
 
-    /**
-     * @var string
-     *
-     * @ORM\Column(type="string", length=255, unique=true)
-     * @Groups({
-     *     "user_read",
-     *     "user_write",
-     *     "task_read",
-     *     "client_read"
-     * })
-     * @Assert\NotBlank()
-     * @Assert\Email()
-     */
+    #[ORM\Column(type: 'string', length: 255, unique: true)]
+    #[Assert\NotBlank]
+    #[Assert\Email]
+    #[Groups([
+        "user_read",
+        "user_write",
+        "task_read",
+        "client_read",
+    ])]
     private string $username;
 
-    /**
-     * @var string
-     *
-     * @ORM\Column(type="string", length=64)
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(type: 'string', length: 64)]
+    #[Assert\NotBlank]
     private string $password;
 
-    /**
-     * @var string|null
-     *
-     * @Groups({
-     *     "user_write"
-     * })
-     */
+    #[Groups([
+        "user_write",
+    ])]
     private ?string $plainPassword = null;
 
-    /**
-     * @var string
-     *
-     * @ORM\Column(type="string", length=255)
-     * @Groups({
-     *     "user_read",
-     *     "user_write",
-     *     "task_read",
-     *     "client_read",
-     *     "project_read"
-     * })
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(type: 'string', length: 255)]
+    #[Assert\NotBlank]
+    #[Groups([
+        "user_read",
+        "user_read_collection",
+        "user_write",
+        "task_read",
+        "client_read",
+        "project_read",
+    ])]
     private string $name;
 
-    /**
-     * @var string
-     *
-     * @ORM\Column(type="string", length=255, unique=true)
-     * @Groups({
-     *     "user_read",
-     *     "user_write",
-     *     "task_read",
-     *     "client_read"
-     * })
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(type: 'string', length: 255, unique: true)]
+    #[Assert\NotBlank]
+    #[Groups([
+        "user_read",
+        "user_read_collection",
+        "user_write",
+        "task_read",
+        "client_read",
+    ])]
     private string $email;
 
-    /**
-     * @ORM\OneToMany(targetEntity="App\Entity\Task", mappedBy="assignee")
-     * @Groups({
-     *     "user_read"
-     * })
-     * @ORM\OrderBy({"id" = "DESC"})
-     */
+    #[ORM\OneToMany(mappedBy: 'assignee', targetEntity: Task::class)]
+    #[ORM\OrderBy(['id' => 'DESC'])]
     private Collection $tasks;
 
-    /**
-     * @ORM\ManyToMany(targetEntity="App\Entity\Group")
-     * @Groups({
-     *     "user_read",
-     *     "user_write"
-     * })
-     */
+    #[ORM\ManyToMany(targetEntity: Group::class)]
+    #[Groups([
+        "user_read",
+        "user_read_collection",
+        "user_write",
+    ])]
     private Collection $groups;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\Language")
-     * @Groups({
-     *     "user_read",
-     *     "user_write"
-     * })
-     * @Assert\NotNull()
-     */
+    #[ORM\ManyToOne(targetEntity: Language::class)]
+    #[Assert\NotNull]
+    #[Groups([
+        "user_read",
+        "user_read_collection",
+        "user_write",
+    ])]
     private ?Language $language = null;
 
-    /**
-     * @ORM\Column(type="boolean", nullable=true)
-     */
+    #[ORM\Column(type: 'boolean', nullable: true)]
     private ?bool $isGoogleSyncEnabled = false;
 
-    /**
-     * @ORM\Column(type="text", nullable=true)
-     */
+    #[ORM\Column(type: 'text', nullable: true)]
     private ?string $googleAccessToken = null;
 
-    /**
-     * @ORM\Column(type="text", nullable=true)
-     */
+    #[ORM\Column(type: 'text', nullable: true)]
     private ?string $googleCalendars = null;
 
-    /**
-     * @ORM\Column(type="string", nullable=true)
-     */
+    #[ORM\Column(type: 'string', nullable: true)]
     private ?string $googleCalendarId = null;
 
-    /**
-     * User constructor.
-     */
     public function __construct()
     {
         $this->tasks = new ArrayCollection();
@@ -237,10 +202,7 @@ class User implements Serializable, UserInterface
         return $this->password;
     }
 
-    /**
-     * @return array
-     */
-    public function getRoles(): ?array
+    public function getRoles(): array
     {
         $roles[] = ['ROLE_USER'];
 
@@ -255,22 +217,16 @@ class User implements Serializable, UserInterface
     {
     }
 
-    /** @see \Serializable::serialize() */
-    public function serialize(): ?string
+    public function __serialize(): array
     {
-        return serialize(
-            array(
-                $this->id,
-                $this->username,
-                $this->password,
-            )
+        return array(
+            $this->id,
+            $this->username,
+            $this->password,
         );
     }
 
-    /** @param $serialized
-     * @see \Serializable::unserialize()
-     */
-    public function unserialize($serialized): void
+    public function __unserialize($serialized): void
     {
         [
             $this->id,
@@ -279,18 +235,11 @@ class User implements Serializable, UserInterface
         ] = unserialize($serialized, ['allowed_classes' => false]);
     }
 
-    /**
-     * @return int
-     */
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    /**
-     * @param int $id
-     * @return User
-     */
     public function setId(int $id): self
     {
         $this->id = $id;
@@ -303,11 +252,6 @@ class User implements Serializable, UserInterface
         return $this->name;
     }
 
-    /**
-     * @param string $name
-     * @return User
-     * @return User
-     */
     public function setName(string $name): self
     {
         $this->name = $name;
@@ -320,10 +264,6 @@ class User implements Serializable, UserInterface
         return $this->email;
     }
 
-    /**
-     * @param string $email
-     * @return User
-     */
     public function setEmail(string $email): self
     {
         $this->email = $email;
@@ -346,9 +286,6 @@ class User implements Serializable, UserInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Task[]
-     */
     public function getTasks(): Collection
     {
         return $this->tasks;
@@ -377,18 +314,11 @@ class User implements Serializable, UserInterface
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getPlainPassword(): ?string
     {
         return $this->plainPassword;
     }
 
-    /**
-     * @param string|null $plainPassword
-     * @return User
-     */
     public function setPlainPassword(?string $plainPassword): self
     {
         $this->plainPassword = $plainPassword;
@@ -396,9 +326,6 @@ class User implements Serializable, UserInterface
         return $this;
     }
 
-    /**
-     * @return Collection|Group[]
-     */
     public function getGroups(): Collection
     {
         return $this->groups;
@@ -480,5 +407,15 @@ class User implements Serializable, UserInterface
         $this->googleCalendarId = $googleCalendarId;
 
         return $this;
+    }
+
+    public function getUserIdentifier(): string
+    {
+        return (string)$this->getId();
+    }
+
+    public function isIsGoogleSyncEnabled(): ?bool
+    {
+        return $this->isGoogleSyncEnabled;
     }
 }

@@ -3,20 +3,11 @@
 namespace App\Traits;
 
 use App\Interfaces\TranslatableInterface;
-use Exception;
 use RuntimeException;
 use Symfony\Component\Serializer\Annotation\Groups;
 
-/**
- * Trait TranslationSluggable
- * @package App\Traits
- */
 trait TranslationSluggable
 {
-    /**
-     * @return mixed
-     * @throws Exception
-     */
     public function getTranslation()
     {
         if ($this instanceof TranslatableInterface) {
@@ -32,11 +23,9 @@ trait TranslationSluggable
         throw new RuntimeException('Class should implement TranslatableInterface');
     }
 
-    /**
-     * @return string
-     * @throws Exception
-     * @Groups({"slug"})
-     */
+    #[Groups([
+        "slug",
+    ])]
     public function getSlug(): string
     {
         return $this->getTranslation()->getSlug();

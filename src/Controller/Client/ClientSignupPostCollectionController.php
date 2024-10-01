@@ -7,46 +7,22 @@ use App\Entity\Client;
 use App\Service\Email\EmailSender;
 use DateTime;
 use Doctrine\ORM\EntityManagerInterface;
-use Exception;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
-use Symfony\Component\Security\Core\Encoder\UserPasswordEncoderInterface;
-use Twig\Error\LoaderError;
-use Twig\Error\RuntimeError;
-use Twig\Error\SyntaxError;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 use function bin2hex;
 use function random_bytes;
 
-/**
- * Class ClientSignupPostCollectionController
- * @package App\Controller\User
- */
 class ClientSignupPostCollectionController extends BaseUserController
 {
-    /**
-     * @var EntityManagerInterface
-     */
     private EntityManagerInterface $em;
 
-    /**
-     * @var EmailSender
-     */
     private EmailSender $emailSender;
 
-    /**
-     * @var ParameterBagInterface
-     */
     private ParameterBagInterface $params;
 
-    /**
-     * ClientSignupPostCollectionController constructor.
-     * @param UserPasswordEncoderInterface $encoder
-     * @param EntityManagerInterface $em
-     * @param EmailSender $emailSender
-     * @param ParameterBagInterface $params
-     */
     public function __construct(
-        UserPasswordEncoderInterface $encoder,
+        UserPasswordHasherInterface $encoder,
         EmailSender $emailSender,
         ParameterBagInterface $params
     ) {
@@ -55,14 +31,6 @@ class ClientSignupPostCollectionController extends BaseUserController
         $this->params = $params;
     }
 
-    /**
-     * @param Client $data
-     * @return Client
-     * @throws LoaderError
-     * @throws RuntimeError
-     * @throws SyntaxError
-     * @throws Exception
-     */
     public function __invoke(Client $data): Client
     {
         $data->setToken(bin2hex(random_bytes(32)));

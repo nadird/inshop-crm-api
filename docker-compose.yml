@@ -2,14 +2,13 @@ version: '3.2'
 
 services:
   php:
-    image: inshopgroup/docker-inshop-crm-api-php-fpm-dev:php7.4
+    image: inshopgroup/docker-inshop-crm-api-php-fpm-dev:php8.1
     depends_on:
       - db
     env_file:
       - ./.env
     volumes:
-      - .:/var/www:rw,cached
-      - files-data:/var/www/var/files:rw
+      - api-data:/var/www
     networks:
       - api
 
@@ -18,14 +17,14 @@ services:
     depends_on:
       - php
     volumes:
-      - ./public:/var/www/public:ro
+      - api-data:/var/www
     ports:
       - ${PORT_API}:80
     networks:
       - api
 
   db:
-    image: postgres:11.4-alpine
+    image: postgres:latest
     environment:
       - POSTGRES_DB=${DATABASE_NAME}
       - POSTGRES_USER=${DATABASE_USER}
@@ -37,38 +36,10 @@ services:
     networks:
       - api
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.3.0
-    environment:
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - discovery.type=single-node
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - es-data:/usr/share/elasticsearch/data
-    ports:
-      - ${PORT_ELASTIC}:9200
-    networks:
-      - api
-      - esnet
-
-  redis:
-    image: redis:latest
-    volumes:
-      - redis-data:/var/lib/redis
-    networks:
-      - api
-
 volumes:
-  es-data: {}
   db-data: {}
-  redis-data: {}
-  files-data: {}
-  images-data: {}
+  api-data:
+    external: true
 
 networks:
-    esnet:
     api:

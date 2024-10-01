@@ -7,15 +7,8 @@ use App\Entity\Role;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 
-/**
- * Class RoleFixtures
- * @package App\DataFixtures
- */
 class RoleFixtures extends Fixture
 {
-    /**
-     * @param ObjectManager $manager
-     */
     public function load(ObjectManager $manager): void
     {
         $modules = [
@@ -36,10 +29,10 @@ class RoleFixtures extends Fixture
             ],
             'Group' => [
                 'LIST',
-//                'CREATE',
+                'CREATE',
                 'SHOW',
-//                'UPDATE',
-//                'DELETE',
+                'UPDATE',
+                'DELETE',
             ],
             'History' => [
                 'LIST',
@@ -60,49 +53,17 @@ class RoleFixtures extends Fixture
             'Task status' => [],
             'User' => [
                 'LIST',
-//                'CREATE',
+                'CREATE',
                 'SHOW',
-//                'UPDATE',
-//                'DELETE',
+                'UPDATE',
+                'DELETE',
                 'DASHBOARD',
             ],
             'Other' => [
                 'SEARCH',
                 'CALENDAR',
             ],
-//            'Currency' => [],
-//            'Company' => [],
-//            'Company product' => [],
-//            'Image' => [],
-//            'Category' => [],
-//            'Text' => [],
-//            'Invoice header' => [],
-//            'Invoice line' => [],
-//            'Invoice status' => [],
-//            'Invoice type' => [],
             'Language' => [],
-//            'Order header' => [],
-//            'Order line' => [],
-//            'Order line status' => [],
-//            'Order status' => [],
-//            'Payment type' => [],
-//            'Brand' => [],
-//            'Channel' => [],
-//            'Product' => [],
-//            'Product sell price' => [],
-//            'Purchase order header' => [],
-//            'Purchase order line' => [],
-//            'Purchase order line status' => [],
-//            'Purchase order status' => [],
-//            'Shipment method' => [],
-//            'Shipping notice header' => [],
-//            'Shipping notice line' => [],
-//            'Shipping notice line status' => [],
-//            'Shipping notice status' => [],
-//            'Stock line' => [],
-//            'Stock line status' => [],
-//            'Vat' => [],
-//            'Warehouse' => [],
         ];
 
         $actions = [

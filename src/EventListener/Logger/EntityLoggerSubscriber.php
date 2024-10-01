@@ -4,22 +4,18 @@ namespace App\EventListener\Logger;
 
 use App\Entity\History;
 use DateTime;
-use Doctrine\Common\Annotations\AnnotationReader;
 use Doctrine\Common\EventSubscriber;
 use Doctrine\Common\Persistence\Proxy;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\LifecycleEventArgs;
+use Doctrine\ORM\Events;
 use Doctrine\ORM\Event\PostFlushEventArgs;
 use Doctrine\ORM\Mapping\Column;
 use Doctrine\ORM\Mapping\ManyToOne;
 use Doctrine\ORM\Mapping\OneToOne;
-use Doctrine\ORM\OptimisticLockException;
-use Doctrine\ORM\ORMException;
 use Doctrine\ORM\PersistentCollection;
 use Gesdinet\JWTRefreshTokenBundle\Entity\RefreshToken;
-use JsonException;
 use ReflectionClass;
-use ReflectionException;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -28,52 +24,27 @@ use function in_array;
 use function is_object;
 use function method_exists;
 
-/**
- * Class EntityLoggerSubscriber
- * @package App\EventListener
- */
 class EntityLoggerSubscriber implements EventSubscriber
 {
-    /**
-     * @var TokenStorageInterface
-     */
     protected TokenStorageInterface $tokenStorage;
 
-    /**
-     * @var array
-     */
     protected array $logs = [];
 
-    /**
-     * @var bool
-     */
-    private bool $isDisabled = false;
-
-    /**
-     * @return array
-     */
     public function getSubscribedEvents(): array
     {
         return [
-            'preUpdate',
-            'postPersist',
-            'preRemove',
-            'postFlush',
+            Events::preUpdate,
+            Events::postPersist,
+            Events::preRemove,
+            Events::postFlush,
         ];
     }
 
-    /**
-     * @var array
-     */
     protected static array $disabledEntities = [
-        EntityLogger::class,
         History::class,
         RefreshToken::class,
     ];
 
-    /**
-     * @var array
-     */
     protected static array $disabledAttributes = [
         'createdAt',
         'updatedAt',
@@ -87,70 +58,42 @@ class EntityLoggerSubscriber implements EventSubscriber
         'googleAccessToken',
     ];
 
-    /**
-     * EntityLoggerSubscriber constructor.
-     * @param TokenStorageInterface $tokenStorage
-     */
     public function __construct(TokenStorageInterface $tokenStorage)
     {
         $this->tokenStorage = $tokenStorage;
     }
 
-    /**
-     * @param LifecycleEventArgs $args
-     * @throws ReflectionException
-     * @throws JsonException
-     */
     public function preUpdate(LifecycleEventArgs $args): void
     {
-        if (!$this->isDisabled()) {
-            $this->calculateChanges($args->getEntityManager(), $args->getEntity(), 'update');
-        }
+        $this->calculateChanges($args->getObjectManager(), $args->getObject(), 'update');
     }
 
-    /**
-     * @param LifecycleEventArgs $args
-     * @throws ReflectionException
-     * @throws JsonException
-     */
     public function postPersist(LifecycleEventArgs $args): void
     {
-        if (!$this->isDisabled()) {
-            $this->calculateChanges($args->getEntityManager(), $args->getEntity(), 'create');
-        }
+        $this->calculateChanges($args->getObjectManager(), $args->getObject(), 'create');
     }
 
-    /**
-     * @param LifecycleEventArgs $args
-     */
     public function preRemove(LifecycleEventArgs $args): void
     {
-        if (!$this->isDisabled()) {
-            $entity = $args->getEntity();
-            $entityClassName = get_class($entity);
+        $entity = $args->getObject();
+        $entityClassName = get_class($entity);
 
-            if (in_array($entityClassName, self::$disabledEntities, true)) {
-                return;
-            }
-
-            $entityLogger = new EntityLogger();
-            $entityLogger->setEntity($entity);
-            $entityLogger->setAction('remove');
-            $entityLogger->addChange('name', $this->guessObjectName($entity));
-
-            $this->logs[] = $entityLogger;
+        if (in_array($entityClassName, self::$disabledEntities, true)) {
+            return;
         }
+
+        $entityLogger = new EntityLogger();
+        $entityLogger->setEntity($entity);
+        $entityLogger->setAction('remove');
+        $entityLogger->addChange('name', $this->guessObjectName($entity));
+
+        $this->logs[] = $entityLogger;
     }
 
-    /**
-     * @param PostFlushEventArgs $args
-     * @throws ORMException
-     * @throws OptimisticLockException
-     */
     public function postFlush(PostFlushEventArgs $args): void
     {
-        if (!empty($this->logs) && !$this->isDisabled()) {
-            $em = $args->getEntityManager();
+        if (!empty($this->logs)) {
+            $em = $args->getObjectManager();
 
             /** @var EntityLogger $entityLogger */
             foreach ($this->logs as $entityLogger) {
@@ -173,9 +116,6 @@ class EntityLoggerSubscriber implements EventSubscriber
         }
     }
 
-    /**
-     * @return string
-     */
     protected function getUsername(): string
     {
         $token = $this->tokenStorage->getToken();
@@ -193,10 +133,6 @@ class EntityLoggerSubscriber implements EventSubscriber
         return 'Unknown';
     }
 
-    /**
-     * @param $object
-     * @return string
-     */
     protected function guessObjectName($object): ?string
     {
         if (is_object($object) && method_exists($object, 'getId')) {
@@ -214,10 +150,6 @@ class EntityLoggerSubscriber implements EventSubscriber
         return (string) $object;
     }
 
-    /**
-     * @param array $collection
-     * @return string
-     */
     protected function getValueForRelations(array $collection): string
     {
         return implode(
@@ -232,13 +164,6 @@ class EntityLoggerSubscriber implements EventSubscriber
         );
     }
 
-    /**
-     * @param EntityManagerInterface $em
-     * @param $entity
-     * @param string $action
-     * @throws ReflectionException
-     * @throws JsonException
-     */
     protected function calculateChanges(EntityManagerInterface $em, $entity, string $action): void
     {
         $entityClassName = get_class($entity);
@@ -247,13 +172,12 @@ class EntityLoggerSubscriber implements EventSubscriber
             return;
         }
 
-        $uow = $em->getUnitOfWork();
+        $metadata = $em->getClassMetadata(get_class($entity));
 
-        $uow->recomputeSingleEntityChangeSet($em->getClassMetadata(get_class($entity)), $entity);
+        $uow = $em->getUnitOfWork();
+        $uow->recomputeSingleEntityChangeSet($metadata, $entity);
 
         $changes = $uow->getEntityChangeSet($entity);
-
-        $annotationReader = new AnnotationReader();
 
         $reflectionClass = new ReflectionClass($entity);
 
@@ -273,61 +197,59 @@ class EntityLoggerSubscriber implements EventSubscriber
             $type = null;
 
             if ($reflectionClass->hasProperty($attributeName)) {
-                $annotations = $annotationReader->getPropertyAnnotations($reflectionClass->getProperty($attributeName));
-                $type = $this->getColumnTypeFromAnnotations($annotations);
+                $type = $metadata->getTypeOfField($attributeName);
             }
 
-            [
-                $oldValueRaw,
-                $newValueRaw
-            ] = [...$change];
+            if ($type) {
+                [$oldValueRaw, $newValueRaw] = [...$change];
 
-            switch ($type) {
-                case 'boolean':
-                    $oldValue = $oldValueRaw ? 'yes' : 'no';
-                    $newValue = $newValueRaw ? 'yes' : 'no';
-                    break;
+                switch ($type) {
+                    case 'boolean':
+                        $oldValue = $oldValueRaw ? 'yes' : 'no';
+                        $newValue = $newValueRaw ? 'yes' : 'no';
+                        break;
 
-                case 'date':
-                    $oldValue = $change[0] ? $change[0]->format('d-m-Y') : '';
-                    $newValue = $change[1] ? $change[1]->format('d-m-Y') : '';
-                    break;
+                    case 'date':
+                        $oldValue = $change[0] ? $change[0]->format('d-m-Y') : '';
+                        $newValue = $change[1] ? $change[1]->format('d-m-Y') : '';
+                        break;
 
-                case 'time':
-                    $oldValue = $change[0] ? $change[0]->format('H:i:s') : '';
-                    $newValue = $change[1] ? $change[1]->format('H:i:s') : '';
-                    break;
+                    case 'time':
+                        $oldValue = $change[0] ? $change[0]->format('H:i:s') : '';
+                        $newValue = $change[1] ? $change[1]->format('H:i:s') : '';
+                        break;
 
-                case 'datetime':
-                    $oldValue = $change[0] ? $change[0]->format('d-m-Y H:i:s') : '';
-                    $newValue = $change[1] ? $change[1]->format('d-m-Y H:i:s') : '';
-                    break;
+                    case 'datetime':
+                        $oldValue = $change[0] ? $change[0]->format('d-m-Y H:i:s') : '';
+                        $newValue = $change[1] ? $change[1]->format('d-m-Y H:i:s') : '';
+                        break;
 
-                case 'string':
-                case 'text':
-                case 'integer':
-                    $oldValue = $oldValueRaw;
-                    $newValue = $newValueRaw;
-                    break;
+                    case 'string':
+                    case 'text':
+                    case 'integer':
+                        $oldValue = $oldValueRaw;
+                        $newValue = $newValueRaw;
+                        break;
 
-                case 'json':
-                    $oldValue = json_encode($oldValueRaw, JSON_THROW_ON_ERROR, 512);
-                    $newValue = json_encode($newValueRaw, JSON_THROW_ON_ERROR, 512);
-                    break;
+                    case 'json':
+                        $oldValue = json_encode($oldValueRaw, JSON_THROW_ON_ERROR, 512);
+                        $newValue = json_encode($newValueRaw, JSON_THROW_ON_ERROR, 512);
+                        break;
 
-                case OneToOne::class:
-                case ManyToOne::class:
-                    $oldValue = $this->guessObjectName($oldValueRaw);
-                    $newValue = $this->guessObjectName($newValueRaw);
-                    break;
+                    case OneToOne::class:
+                    case ManyToOne::class:
+                        $oldValue = $this->guessObjectName($oldValueRaw);
+                        $newValue = $this->guessObjectName($newValueRaw);
+                        break;
 
-                default:
-                    $oldValue = $oldValueRaw;
-                    $newValue = $newValueRaw;
-            }
+                    default:
+                        $oldValue = $oldValueRaw;
+                        $newValue = $newValueRaw;
+                }
 
-            if ($oldValue !== $newValue) {
-                $entityLogger->addChange($attributeName, $newValue);
+                if ($oldValue !== $newValue) {
+                    $entityLogger->addChange($attributeName, $newValue);
+                }
             }
         }
 
@@ -353,10 +275,6 @@ class EntityLoggerSubscriber implements EventSubscriber
         $this->logs[] = $entityLogger;
     }
 
-    /**
-     * @param array $annotations
-     * @return null|string
-     */
     protected function getColumnTypeFromAnnotations(array $annotations): ?string
     {
         foreach ($annotations as $annotation) {
@@ -376,21 +294,5 @@ class EntityLoggerSubscriber implements EventSubscriber
         }
 
         return null;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isDisabled(): bool
-    {
-        return $this->isDisabled;
-    }
-
-    /**
-     * @param bool $isDisabled
-     */
-    public function setIsDisabled(bool $isDisabled): void
-    {
-        $this->isDisabled = $isDisabled;
     }
 }

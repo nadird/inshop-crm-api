@@ -7,19 +7,11 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Event\LifecycleEventArgs;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 
-/**
- * Class EntityRemoveListener
- * @package App\EventListener
- */
 class EntityRemoveListener
 {
-    /**
-     * @param LifecycleEventArgs $args
-     * @throws EntityRemoveException
-     */
     public function preRemove(LifecycleEventArgs $args): void
     {
-        $em = $args->getEntityManager();
+        $em = $args->getObjectManager();
         $entity = $args->getObject();
 
         $associationNames = $em->getClassMetadata(get_class($entity))->getAssociationNames();

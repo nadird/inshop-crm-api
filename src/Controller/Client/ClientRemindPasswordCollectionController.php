@@ -12,49 +12,25 @@ use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Security\Core\Encoder\UserPasswordEncoderInterface;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;
 
 use function bin2hex;
 use function random_bytes;
 
-/**
- * Class ClientRemindPasswordCollectionController
- * @package App\Controller\User
- */
 class ClientRemindPasswordCollectionController extends BaseUserController
 {
-    /**
-     * @var ParameterBagInterface
-     */
     private ParameterBagInterface $params;
 
-    /**
-     * @var ClientRepository
-     */
     private ClientRepository $clientRepository;
 
-    /**
-     * @var EmailSender
-     */
     private EmailSender $emailSender;
 
-    /**
-     * @var EntityManagerInterface
-     */
     private EntityManagerInterface $em;
 
-    /**
-     * ClientRemindPasswordCollectionController constructor.
-     * @param UserPasswordEncoderInterface $encoder
-     * @param ParameterBagInterface $params
-     * @param ClientRepository $clientRepository
-     * @param EmailSender $emailSender
-     * @param EntityManagerInterface $em
-     */
     public function __construct(
-        UserPasswordEncoderInterface $encoder,
+        UserPasswordHasherInterface $encoder,
         ParameterBagInterface $params,
         ClientRepository $clientRepository,
         EmailSender $emailSender,
@@ -67,12 +43,6 @@ class ClientRemindPasswordCollectionController extends BaseUserController
         $this->em = $em;
     }
 
-    /**
-     * @param Request $request
-     * @return Client
-     * @throws \JsonException
-     * @throws Exception
-     */
     public function __invoke(Request $request): Client
     {
         $data = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR);
