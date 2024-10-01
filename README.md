@@ -221,3 +221,4 @@ sudo sysctl -w vm.max_map_count=262144
 echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
 ```
 Date: 09/01/2024
+Date: 15/01/2024
